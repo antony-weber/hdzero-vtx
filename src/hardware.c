@@ -190,7 +190,7 @@ void Setting_Save() {
     uint8_t rcv = 0;
 
 #if (0)
-    if (cameraID == 0) {
+    if (camera_type == 0) {
         CAM_WriteCFG(0, RF_FREQ, RF_POWER, MODE);
         CAM_WriteCFG(0, RF_FREQ, RF_POWER, MODE);
         CAM_WriteCFG(0, RF_FREQ, RF_POWER, MODE);
@@ -230,7 +230,7 @@ void GetVtxParameter() {
     uint8_t flash_vld = 1;
     uint8_t ee_vld = 1;
 
-    EE_VALID = !I2C_Write8_Wait(10, ADDR_EEPROM, 0x40, 0xFF);
+    EE_VALID = !I2C_Write8_Wait(10, ADDR_EEPROM, EEP_ADDR_EEP_VLD, 0xFF);
 
 #ifdef _DEBUG_MODE
     debugf("\r\nEE_VALID:%x", (uint16_t)EE_VALID);
@@ -367,12 +367,10 @@ void GetVtxParameter() {
 #ifdef _DEBUG_MODE
         else
             debugf("\r\nUse default rf_pwr_tab.");
-
-        debugf("\r\nUSE CAM for VTX setting.");
 #endif
     }
 
-#ifdef _DEBUG_MODE
+#ifdef _DEBUG_DM6300
     for (i = 0; i <= FREQ_MAX_EXT; i++) {
         debugf("\r\nrf_pwr_tab[%d]=", (uint16_t)i);
         for (j = 0; j <= POWER_MAX; j++)
@@ -405,35 +403,27 @@ void Init_6300RF(uint8_t freq, uint8_t pwr) {
 }
 
 void Init_HW() {
-    //--------- gpio init -----------------
     SPI_Init();
-
     LED_Init();
-
 #ifdef VIDEO_PAT
     Set_720P60(0);
     WriteReg(0, 0x50, 0x01);
     RF_FREQ = 0;
-    //--------- eeprom --------------------
     GetVtxParameter();
-
 #ifdef _RF_CALIB
     RF_POWER = 0; // max power
     RF_FREQ = 0;  // ch1
 #else
     RF_POWER = 0;
 #endif
-
     Init_6300RF(RF_FREQ, RF_POWER);
     DM6300_AUXADC_Calib();
 #else
 #ifdef HDZERO_FREESTYLE
     LED_TC3587_Init();
 #endif
-    //--------- eeprom --------------------
     GetVtxParameter();
     Get_EEP_LifeTime();
-    //---------- Camera ---------------
     CameraInit();
 //--------- dm6300 --------------------
 // move to RF_Delay_Init()
@@ -724,7 +714,7 @@ void HeatProtect() {
 #ifdef USE_TEMPERATURE_SENSOR
                     verbosef("\r\nHeat detect: temp = %d, pwr_offset=%d", (uint16_t)temp, (uint16_t)pwr_offset);
 #else
-                    verbosef("\r\nHeat Protect detect: 0x%x", temp);
+                    // verbosef("\r\nHeat Protect detect: 0x%x", temp);
 #endif
 #endif
 
@@ -929,6 +919,7 @@ void Video_Detect() {
         sec++;
 
 #ifdef _DEBUG_TC3587
+        debugf("\r\nTC3587 reg:");
         val = I2C_Read16(ADDR_TC3587, 0x0062);
         debugf("\r\n0x0062 = 0x%x", val);
         val = I2C_Read16(ADDR_TC3587, 0x0064);
@@ -965,6 +956,7 @@ void Video_Detect() {
         debugf("\r\n0x0090 = 0x%x", val);
         val = I2C_Read16(ADDR_TC3587, 0x00F8);
         debugf("\r\n0x00F8 = 0x%x", val);
+        debugf("\r\n");
         I2C_Write16(ADDR_TC3587, 0x0064, 0x01ff);
         I2C_Write16(ADDR_TC3587, 0x0068, 0x0000);
         I2C_Write16(ADDR_TC3587, 0x006C, 0x0000);
@@ -982,7 +974,7 @@ void Video_Detect() {
         if (heat_protect)
             return;
 
-        if (cameraID) {
+        if (camera_type) {
             for (i = 0; i < 5; i++) {
                 val |= I2C_Read16(ADDR_TC3587, 0x006A);
                 val |= I2C_Read16(ADDR_TC3587, 0x006E);
@@ -999,12 +991,12 @@ void Video_Detect() {
         if (sec == 3) {
             sec = 0;
             if (cameraLost) { // video loss
-                if (CAM_MODE == CAM_720P50) {
+                if (video_format == VDO_FMT_720P50) {
                     Set_720P60(IS_RX);
-                    CAM_MODE = CAM_720P60;
-                } else if (CAM_MODE == CAM_720P60) {
+                    video_format = VDO_FMT_720P60;
+                } else if (video_format == VDO_FMT_720P60) {
                     Set_720P50(IS_RX);
-                    CAM_MODE = CAM_720P50;
+                    video_format = VDO_FMT_720P50;
                 }
             }
         }
